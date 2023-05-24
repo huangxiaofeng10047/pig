@@ -1,4 +1,4 @@
-FROM moxm/java:1.8-full
+FROM openjdk:17-ea-slim-buster
 
 RUN mkdir -p /pig-auth
 

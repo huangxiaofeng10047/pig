@@ -17,11 +17,32 @@
 package com.pig4cloud.pig.monitor.config;
 
 import de.codecentric.boot.admin.server.config.AdminServerProperties;
+import jakarta.servlet.DispatcherType;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.Configuration;
+import org.springframework.http.HttpStatus;
+import org.springframework.security.config.Customizer;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
+import org.springframework.security.config.annotation.web.configuration.WebSecurityCustomizer;
+import org.springframework.security.core.userdetails.User;
+import org.springframework.security.core.userdetails.UserDetails;
+import org.springframework.security.core.userdetails.UserDetailsService;
+import org.springframework.security.provisioning.InMemoryUserDetailsManager;
 import org.springframework.security.web.SecurityFilterChain;
+import org.springframework.security.web.authentication.HttpStatusEntryPoint;
 import org.springframework.security.web.authentication.SavedRequestAwareAuthenticationSuccessHandler;
+import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
+import org.springframework.security.web.authentication.www.BasicAuthenticationFilter;
+import org.springframework.security.web.csrf.CookieCsrfTokenRepository;
+import org.springframework.security.web.csrf.CsrfTokenRequestAttributeHandler;
+import org.springframework.security.web.util.matcher.AntPathRequestMatcher;
+
+import java.util.UUID;
+
+import static io.undertow.util.Methods.POST;
+import static org.springframework.http.HttpMethod.DELETE;
 
 /**
  * WebSecurityConfigurer
@@ -29,8 +50,15 @@ import org.springframework.security.web.authentication.SavedRequestAwareAuthenti
  * @author lishangbu
  * @date 2019/2/1
  */
+@Configuration
 @EnableWebSecurity
 public class WebSecurityConfigurer {
+
+	// @Value("${spring.security.user.name}")
+	// private String username;
+	//
+	// @Value("${spring.security.user.password}")
+	// private String password;
 
 	private final String adminContextPath;
 
@@ -45,17 +73,54 @@ public class WebSecurityConfigurer {
 	 * @throws Exception
 	 */
 	@Bean
-	SecurityFilterChain defaultSecurityFilterChain(HttpSecurity http) throws Exception {
+	SecurityFilterChain filterChain(HttpSecurity http) throws Exception {
 		SavedRequestAwareAuthenticationSuccessHandler successHandler = new SavedRequestAwareAuthenticationSuccessHandler();
 		successHandler.setTargetUrlParameter("redirectTo");
 		successHandler.setDefaultTargetUrl(adminContextPath + "/");
-		http.headers().frameOptions().disable().and().authorizeHttpRequests()
-				.requestMatchers(adminContextPath + "/assets/**", adminContextPath + "/login",
-						adminContextPath + "/instances/**", adminContextPath + "/actuator/**")
-				.permitAll().anyRequest().authenticated().and().formLogin().loginPage(adminContextPath + "/login")
-				.successHandler(successHandler).and().logout().logoutUrl(adminContextPath + "/logout").and().httpBasic()
-				.and().csrf().disable();
+		//
+		// http.headers().frameOptions().disable().and().authorizeRequests()
+		// .requestMatchers(adminContextPath + "/assets/**", adminContextPath + "/login",
+		// adminContextPath + "/actuator/**")
+		// .permitAll().dispatcherTypeMatchers(DispatcherType.ASYNC).permitAll().anyRequest().authenticated().and()
+		// .formLogin().loginPage(adminContextPath +
+		// "/login").successHandler(successHandler).and().logout()
+		// .logoutUrl(adminContextPath +
+		// "/logout").and().httpBasic().and().csrf().disable();
+		http.authorizeHttpRequests((authorizeRequests) -> authorizeRequests //
+				.requestMatchers(new AntPathRequestMatcher(adminContextPath + "/assets/**")).permitAll()
+				.requestMatchers(new AntPathRequestMatcher(adminContextPath + "/variables.css")).permitAll()
+				.requestMatchers(new AntPathRequestMatcher(adminContextPath + "/actuator/info")).permitAll()
+				.requestMatchers(new AntPathRequestMatcher(adminContextPath + "/actuator/health")).permitAll()
+				.requestMatchers(new AntPathRequestMatcher(adminContextPath + "/login")).permitAll()
+				.dispatcherTypeMatchers(DispatcherType.ASYNC).permitAll() // https://github.com/spring-projects/spring-security/issues/11027
+				.anyRequest().authenticated())
+				.formLogin(
+						(formLogin) -> formLogin.loginPage(adminContextPath + "/login").successHandler(successHandler))
+				.logout((logout) -> logout.logoutUrl(adminContextPath + "/logout"))
+				.httpBasic(Customizer.withDefaults());
+
+		http.addFilterAfter(new CustomCsrfFilter(), BasicAuthenticationFilter.class)
+				.csrf((csrf) -> csrf.csrfTokenRepository(CookieCsrfTokenRepository.withHttpOnlyFalse())
+						.csrfTokenRequestHandler(new CsrfTokenRequestAttributeHandler()).ignoringRequestMatchers(
+								new AntPathRequestMatcher(adminContextPath + "/instances", POST.toString()),
+								new AntPathRequestMatcher(adminContextPath + "/instances/*", DELETE.toString()),
+								new AntPathRequestMatcher(adminContextPath + "/actuator/**")));
+
+		http.rememberMe((rememberMe) -> rememberMe.key(UUID.randomUUID().toString()).tokenValiditySeconds(1209600));
 		return http.build();
+	}
+
+	// @Bean
+	// public UserDetailsService userDetailsService() {
+	// UserDetails user =
+	// User.withDefaultPasswordEncoder().username(username).password(password).roles("USER")
+	// .build();
+	//
+	// return new InMemoryUserDetailsManager(user);
+	// }
+	@Bean
+	public WebSecurityCustomizer webSecurityCustomizer() {
+		return (web) -> web.ignoring().requestMatchers("/js/**", "/images/**");
 	}
 
 }
