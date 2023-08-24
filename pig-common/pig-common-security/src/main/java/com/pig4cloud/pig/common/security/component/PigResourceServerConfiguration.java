@@ -16,16 +16,19 @@
 
 package com.pig4cloud.pig.common.security.component;
 
-import cn.hutool.core.util.ArrayUtil;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.annotation.Bean;
 import org.springframework.core.Ordered;
 import org.springframework.core.annotation.Order;
+import org.springframework.security.config.annotation.method.configuration.EnableMethodSecurity;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
+import org.springframework.security.config.annotation.web.configurers.AbstractHttpConfigurer;
+import org.springframework.security.config.annotation.web.configurers.HeadersConfigurer;
 import org.springframework.security.oauth2.server.resource.introspection.OpaqueTokenIntrospector;
 import org.springframework.security.web.SecurityFilterChain;
+import org.springframework.security.web.util.matcher.AntPathRequestMatcher;
 
 /**
  * @author lengleng
@@ -35,6 +38,7 @@ import org.springframework.security.web.SecurityFilterChain;
  */
 @Slf4j
 @EnableWebSecurity
+@EnableMethodSecurity
 @RequiredArgsConstructor
 public class PigResourceServerConfiguration {
 
@@ -49,15 +53,22 @@ public class PigResourceServerConfiguration {
 	@Bean
 	@Order(Ordered.HIGHEST_PRECEDENCE)
 	SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
+		AntPathRequestMatcher[] requestMatchers = permitAllUrl.getUrls()
+			.stream()
+			.map(AntPathRequestMatcher::new)
+			.toList()
+			.toArray(new AntPathRequestMatcher[] {});
 
-		http.authorizeHttpRequests(authorizeRequests -> authorizeRequests
-				.requestMatchers(ArrayUtil.toArray(permitAllUrl.getUrls(), String.class)).permitAll().anyRequest()
-				.authenticated())
-				.oauth2ResourceServer(
-						oauth2 -> oauth2.opaqueToken(token -> token.introspector(customOpaqueTokenIntrospector))
-								.authenticationEntryPoint(resourceAuthExceptionEntryPoint)
-								.bearerTokenResolver(pigBearerTokenExtractor))
-				.headers().frameOptions().disable().and().csrf().disable();
+		http.authorizeHttpRequests(authorizeRequests -> authorizeRequests.requestMatchers(requestMatchers)
+			.permitAll()
+			.anyRequest()
+			.authenticated())
+			.oauth2ResourceServer(
+					oauth2 -> oauth2.opaqueToken(token -> token.introspector(customOpaqueTokenIntrospector))
+						.authenticationEntryPoint(resourceAuthExceptionEntryPoint)
+						.bearerTokenResolver(pigBearerTokenExtractor))
+			.headers(headers -> headers.frameOptions(HeadersConfigurer.FrameOptionsConfig::disable))
+			.csrf(AbstractHttpConfigurer::disable);
 
 		return http.build();
 	}

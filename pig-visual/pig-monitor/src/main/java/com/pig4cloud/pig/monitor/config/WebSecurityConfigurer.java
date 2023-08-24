@@ -30,6 +30,8 @@ import org.springframework.security.core.userdetails.User;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.security.core.userdetails.UserDetailsService;
 import org.springframework.security.provisioning.InMemoryUserDetailsManager;
+import org.springframework.security.config.annotation.web.configurers.AbstractHttpConfigurer;
+import org.springframework.security.config.annotation.web.configurers.HeadersConfigurer;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.HttpStatusEntryPoint;
 import org.springframework.security.web.authentication.SavedRequestAwareAuthenticationSuccessHandler;
@@ -43,6 +45,8 @@ import java.util.UUID;
 
 import static io.undertow.util.Methods.POST;
 import static org.springframework.http.HttpMethod.DELETE;
+
+import static org.springframework.security.config.Customizer.withDefaults;
 
 /**
  * WebSecurityConfigurer
@@ -66,6 +70,12 @@ public class WebSecurityConfigurer {
 		this.adminContextPath = adminServerProperties.getContextPath();
 	}
 
+	/**
+	 * spring security 默认的安全策略
+	 * @param http security注入点
+	 * @return SecurityFilterChain
+	 * @throws Exception
+	 */
 	/**
 	 * spring security 默认的安全策略
 	 * @param http security注入点
@@ -107,6 +117,17 @@ public class WebSecurityConfigurer {
 								new AntPathRequestMatcher(adminContextPath + "/actuator/**")));
 
 		http.rememberMe((rememberMe) -> rememberMe.key(UUID.randomUUID().toString()).tokenValiditySeconds(1209600));
+		http.headers((header) -> header.frameOptions(HeadersConfigurer.FrameOptionsConfig::disable))
+			.authorizeHttpRequests((authorize) -> authorize
+				.requestMatchers(adminContextPath + "/assets/**", adminContextPath + "/login",
+						adminContextPath + "/instances/**", adminContextPath + "/actuator/**")
+				.permitAll()
+				.anyRequest()
+				.authenticated())
+			.formLogin((formLogin) -> formLogin.loginPage(adminContextPath + "/login").successHandler(successHandler))
+			.logout((logout) -> logout.logoutUrl(adminContextPath + "/logout"))
+			.httpBasic(withDefaults())
+			.csrf(AbstractHttpConfigurer::disable);
 		return http.build();
 	}
 

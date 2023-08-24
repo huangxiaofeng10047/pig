@@ -1,4 +1,6 @@
-FROM openjdk:17-ea-slim-buster
+FROM alibabadragonwell/dragonwell:17-anolis
+
+RUN mkdir -p /pig-gateway
 
 RUN mkdir -p /pig-gateway \
     && apt-get update \

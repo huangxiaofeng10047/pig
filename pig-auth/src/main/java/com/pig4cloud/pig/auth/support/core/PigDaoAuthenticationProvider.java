@@ -1,11 +1,11 @@
 package com.pig4cloud.pig.auth.support.core;
 
 import cn.hutool.core.util.StrUtil;
-import cn.hutool.extra.servlet.ServletUtil;
 import cn.hutool.extra.spring.SpringUtil;
 import com.pig4cloud.pig.common.core.constant.SecurityConstants;
 import com.pig4cloud.pig.common.core.util.WebUtils;
 import com.pig4cloud.pig.common.security.service.PigUserDetailsService;
+import jakarta.servlet.http.HttpServletRequest;
 import lombok.SneakyThrows;
 import org.springframework.core.Ordered;
 import org.springframework.security.authentication.BadCredentialsException;
@@ -24,7 +24,6 @@ import org.springframework.security.oauth2.core.endpoint.OAuth2ParameterNames;
 import org.springframework.security.web.authentication.www.BasicAuthenticationConverter;
 import org.springframework.util.Assert;
 
-import jakarta.servlet.http.HttpServletRequest;
 import java.util.Comparator;
 import java.util.Map;
 import java.util.Optional;
@@ -70,20 +69,20 @@ public class PigDaoAuthenticationProvider extends AbstractUserDetailsAuthenticat
 
 		// app 模式不用校验密码
 		String grantType = WebUtils.getRequest().get().getParameter(OAuth2ParameterNames.GRANT_TYPE);
-		if (StrUtil.equals(SecurityConstants.APP, grantType)) {
+		if (StrUtil.equals(SecurityConstants.MOBILE, grantType)) {
 			return;
 		}
 
 		if (authentication.getCredentials() == null) {
 			this.logger.debug("Failed to authenticate since no credentials provided");
 			throw new BadCredentialsException(this.messages
-					.getMessage("AbstractUserDetailsAuthenticationProvider.badCredentials", "Bad credentials"));
+				.getMessage("AbstractUserDetailsAuthenticationProvider.badCredentials", "Bad credentials"));
 		}
 		String presentedPassword = authentication.getCredentials().toString();
 		if (!this.passwordEncoder.matches(presentedPassword, userDetails.getPassword())) {
 			this.logger.debug("Failed to authenticate since password does not match stored value");
 			throw new BadCredentialsException(this.messages
-					.getMessage("AbstractUserDetailsAuthenticationProvider.badCredentials", "Bad credentials"));
+				.getMessage("AbstractUserDetailsAuthenticationProvider.badCredentials", "Bad credentials"));
 		}
 	}
 
@@ -92,8 +91,9 @@ public class PigDaoAuthenticationProvider extends AbstractUserDetailsAuthenticat
 
 	protected final UserDetails retrieveUser(String username, UsernamePasswordAuthenticationToken authentication) {
 		prepareTimingAttackProtection();
-		HttpServletRequest request = WebUtils.getRequest().orElseThrow(
-				(Supplier<Throwable>) () -> new InternalAuthenticationServiceException("web request is empty"));
+		HttpServletRequest request = WebUtils.getRequest()
+			.orElseThrow(
+					(Supplier<Throwable>) () -> new InternalAuthenticationServiceException("web request is empty"));
 
 		String grantType = WebUtils.getRequest().get().getParameter(OAuth2ParameterNames.GRANT_TYPE);
 		String clientId = WebUtils.getRequest().get().getParameter(OAuth2ParameterNames.CLIENT_ID);
@@ -103,12 +103,13 @@ public class PigDaoAuthenticationProvider extends AbstractUserDetailsAuthenticat
 		}
 
 		Map<String, PigUserDetailsService> userDetailsServiceMap = SpringUtil
-				.getBeansOfType(PigUserDetailsService.class);
+			.getBeansOfType(PigUserDetailsService.class);
 
 		String finalClientId = clientId;
-		Optional<PigUserDetailsService> optional = userDetailsServiceMap.values().stream()
-				.filter(service -> service.support(finalClientId, grantType))
-				.max(Comparator.comparingInt(Ordered::getOrder));
+		Optional<PigUserDetailsService> optional = userDetailsServiceMap.values()
+			.stream()
+			.filter(service -> service.support(finalClientId, grantType))
+			.max(Comparator.comparingInt(Ordered::getOrder));
 
 		if (!optional.isPresent()) {
 			throw new InternalAuthenticationServiceException("UserDetailsService error , not register");

@@ -1,6 +1,7 @@
 package com.pig4cloud.pig.common.security.component;
 
 import cn.hutool.extra.spring.SpringUtil;
+import com.pig4cloud.pig.common.core.constant.SecurityConstants;
 import com.pig4cloud.pig.common.security.service.PigUser;
 import com.pig4cloud.pig.common.security.service.PigUserDetailsService;
 import lombok.RequiredArgsConstructor;
@@ -48,12 +49,13 @@ public class PigCustomOpaqueTokenIntrospector implements OpaqueTokenIntrospector
 		}
 
 		Map<String, PigUserDetailsService> userDetailsServiceMap = SpringUtil
-				.getBeansOfType(PigUserDetailsService.class);
+			.getBeansOfType(PigUserDetailsService.class);
 
-		Optional<PigUserDetailsService> optional = userDetailsServiceMap.values().stream()
-				.filter(service -> service.support(Objects.requireNonNull(oldAuthorization).getRegisteredClientId(),
-						oldAuthorization.getAuthorizationGrantType().getValue()))
-				.max(Comparator.comparingInt(Ordered::getOrder));
+		Optional<PigUserDetailsService> optional = userDetailsServiceMap.values()
+			.stream()
+			.filter(service -> service.support(Objects.requireNonNull(oldAuthorization).getRegisteredClientId(),
+					oldAuthorization.getAuthorizationGrantType().getValue()))
+			.max(Comparator.comparingInt(Ordered::getOrder));
 
 		UserDetails userDetails = null;
 		try {
@@ -69,7 +71,13 @@ public class PigCustomOpaqueTokenIntrospector implements OpaqueTokenIntrospector
 		catch (Exception ex) {
 			log.error("资源服务器 introspect Token error {}", ex.getLocalizedMessage());
 		}
-		return (PigUser) userDetails;
+
+		// 注入客户端信息，方便上下文中获取
+		PigUser pigxUser = (PigUser) userDetails;
+		Objects.requireNonNull(pigxUser)
+			.getAttributes()
+			.put(SecurityConstants.CLIENT_ID, oldAuthorization.getRegisteredClientId());
+		return pigxUser;
 	}
 
 }
